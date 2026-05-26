@@ -48,6 +48,12 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV }}
 
+      - name: Setup Node.js for NPM publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          registry-url: 'https://registry.npmjs.org'
+
       - name: build and publish package on NPM
         run: |
           git config --global user.email "juputepix5@gmail.com"
