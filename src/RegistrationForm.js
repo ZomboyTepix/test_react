@@ -83,7 +83,6 @@ function RegistrationForm() {
         setTouched({});
     };
 
-    // Auto-dismiss toaster after 4 s
     useEffect(() => {
         if (!toast) return;
         const id = setTimeout(() => setToast(null), 4000);
@@ -99,7 +98,7 @@ function RegistrationForm() {
         <>
             {toast && (
                 <div className="toast toast-success" role="alert">
-                    ✅ {toast}
+                    {toast}
                 </div>
             )}
 

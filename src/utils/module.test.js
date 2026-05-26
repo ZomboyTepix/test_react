@@ -1,7 +1,5 @@
 import { calculateAge, isAdult, isValidPostalCode, isValidName, isValidEmail } from './module.js';
 
-// ── calculateAge ─────────────────────────────────────────────────────────────
-
 describe('calculateAge', () => {
     it('should return a correct age for a known birth date', () => {
         const loise = { birth: new Date('11/07/1991') };
@@ -17,8 +15,6 @@ describe('calculateAge', () => {
         expect(() => calculateAge(null)).toThrow("missing param p");
     });
 });
-
-// ── isAdult ──────────────────────────────────────────────────────────────────
 
 describe('isAdult', () => {
     it('should return true for a person born in 1990', () => {

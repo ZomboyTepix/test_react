@@ -48,6 +48,19 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV }}
 
+      - name: build and publish package on NPM
+        run: |
+          git config --global user.email "juputepix5@gmail.com"
+          git config --global user.name "ZomboyTepix"
+          npm run build-npm
+          npm version patch
+          npm publish
+          git add .
+          git commit -m "updated version"
+          git push
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
