@@ -15,6 +15,9 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     strategy:
       matrix:
         # Vous pouvez garder 20.x ici pour VOTRE code si votre projet React le nécessite, 
@@ -25,6 +28,9 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -56,14 +62,19 @@ jobs:
 
       - name: build and publish package on NPM
         run: |
+          # Supprimer always-auth dépréciée injectée par setup-node
+          npm config delete always-auth || true
+          # Configurer git pour le commit de npm version
           git config --global user.email "juputepix5@gmail.com"
           git config --global user.name "ZomboyTepix"
+          # Configurer l'authentification git via GITHUB_TOKEN
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          # Build, version (crée automatiquement un commit + tag git), puis publish
           npm run build-npm-ci
           npm version patch
           npm publish
-          git add .
-          git commit -m "updated version"
-          git push
+          # Pousser le commit ET le tag créés par npm version
+          git push --follow-tags
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
