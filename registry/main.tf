@@ -43,8 +43,8 @@ resource "local_file" "ssh_key" {
 }
 
 resource "aws_security_group" "registry_sg" {
-    name        = "registry-sg-simple"
-    description = "Allow SSH, HTTP (UI), Registry (5000)"
+    name_prefix = "registry-sg-"
+    description = "Allow SSH, HTTP (redirect), HTTPS (Nginx)"
 
     ingress {
         description = "SSH"
@@ -54,18 +54,20 @@ resource "aws_security_group" "registry_sg" {
         cidr_blocks = ["0.0.0.0/0"]
     }
 
+    # Port 80 ouvert pour la redirection HTTP -> HTTPS via Nginx
     ingress {
-        description = "Registry UI"
+        description = "HTTP (redirect vers HTTPS)"
         from_port   = 80
         to_port     = 80
         protocol    = "tcp"
         cidr_blocks = ["0.0.0.0/0"]
     }
 
+    # Port 443 pour HTTPS (SSL Offloading Nginx)
     ingress {
-        description = "Registry Docker API"
-        from_port   = 5000
-        to_port     = 5000
+        description = "HTTPS"
+        from_port   = 443
+        to_port     = 443
         protocol    = "tcp"
         cidr_blocks = ["0.0.0.0/0"]
     }
@@ -75,6 +77,10 @@ resource "aws_security_group" "registry_sg" {
         to_port     = 0
         protocol    = "-1"
         cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    lifecycle {
+        create_before_destroy = true
     }
 }
 

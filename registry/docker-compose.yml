@@ -4,8 +4,7 @@ services:
   registry:
     image: registry:2
     restart: always
-    ports:
-      - "5000:5000"
+    # Pas de ports exposés publiquement — accès interne uniquement via nginx
     environment:
       REGISTRY_AUTH: htpasswd
       REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
@@ -18,11 +17,10 @@ services:
   ui:
     image: joxit/docker-registry-ui:main
     restart: always
-    ports:
-      - "80:80"
+    # Pas de ports exposés publiquement — accès interne uniquement via nginx
     environment:
       - REGISTRY_TITLE=Ansible Deployed Registry
-      - REGISTRY_URL=http://{{ public_ip }}:5000
+      - REGISTRY_URL=https://{{ public_ip }}:443
       - SINGLE_REGISTRY=true
       - DELETE_IMAGES=true
     depends_on:

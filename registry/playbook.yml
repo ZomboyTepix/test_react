@@ -52,6 +52,35 @@
         mode: 0640
         crypt_scheme: bcrypt
 
+    # ----------------------------------------------------------
+    # 4. GÉNÉRATION DU CERTIFICAT SSL AUTO-SIGNÉ
+    # ----------------------------------------------------------
+    - name: Création du dossier nginx/certs
+      file:
+        path: "{{ project_dir }}/nginx/certs"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Génération du certificat SSL auto-signé (CN = IP publique)
+      command: >
+        openssl req -x509 -nodes -days 365
+        -newkey rsa:2048
+        -keyout {{ project_dir }}/nginx/certs/registry.key
+        -out {{ project_dir }}/nginx/certs/registry.crt
+        -subj "/CN={{ public_ip }}"
+      args:
+        creates: "{{ project_dir }}/nginx/certs/registry.crt"
+
+    - name: Copie de la configuration Nginx
+      copy:
+        src: nginx.conf
+        dest: "{{ project_dir }}/nginx/nginx.conf"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
     - name: Copie du docker-compose.yml
       template:
         src: docker-compose.yml
