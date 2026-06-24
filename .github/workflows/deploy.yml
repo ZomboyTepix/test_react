@@ -25,12 +25,29 @@ jobs:
           sudo systemctl restart docker
           sleep 5
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.REGISTRY_IP }}:443
-          username: ${{ secrets.REGISTRY_USER }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Validate Credentials and Configure Docker Auth
+        run: |
+          echo "Testing credentials against the registry directly with curl..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -u "${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }}" -k https://${{ secrets.REGISTRY_IP }}:443/v2/)
+          
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Authentication failed! HTTP Status: $HTTP_STATUS. Please check your GitHub Secrets (REGISTRY_USER and REGISTRY_PASSWORD)."
+            exit 1
+          fi
+          echo "Credentials are valid!"
+          
+          echo "Writing Docker config manually to avoid credsStore issues..."
+          mkdir -p ~/.docker
+          AUTH_BASE64=$(echo -n "${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }}" | base64 -w 0)
+          cat <<EOF > ~/.docker/config.json
+          {
+            "auths": {
+              "${{ secrets.REGISTRY_IP }}:443": {
+                "auth": "$AUTH_BASE64"
+              }
+            }
+          }
+          EOF
 
       - name: Build and Push Backend Image
         run: |
