@@ -1,4 +1,4 @@
-name: CI/CD Déploiement
+name: Terraform Provide AWS
 
 on:
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
           sleep 5
 
       - name: Login to Private Registry
-        run: docker login https://${{ secrets.REGISTRY_IP }}:443 -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASSWORD }}
+        run: docker login ${{ secrets.REGISTRY_IP }}:443 -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Build and Push Backend Image
         run: |
