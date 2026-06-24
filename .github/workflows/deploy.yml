@@ -31,23 +31,27 @@ jobs:
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -u "${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }}" -k https://${{ secrets.REGISTRY_IP }}:443/v2/)
           
           if [ "$HTTP_STATUS" != "200" ]; then
-            echo "::error::Authentication failed! HTTP Status: $HTTP_STATUS. Please check your GitHub Secrets (REGISTRY_USER and REGISTRY_PASSWORD). Make sure there are no spaces at the end!"
+            echo "::error::Authentication failed! HTTP Status: $HTTP_STATUS. Please check your GitHub Secrets."
             exit 1
           fi
           echo "Credentials are valid!"
           
-          echo "Writing Docker config manually to avoid credsStore issues..."
-          mkdir -p ~/.docker
+          echo "Writing Docker config manually to a custom DOCKER_CONFIG dir..."
+          mkdir -p /tmp/docker_auth
           AUTH_BASE64=$(echo -n "${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }}" | base64 -w 0)
-          cat <<EOF > ~/.docker/config.json
+          cat <<EOF > /tmp/docker_auth/config.json
           {
             "auths": {
-              "${{ secrets.REGISTRY_IP }}:443": {
-                "auth": "$AUTH_BASE64"
-              }
+              "${{ secrets.REGISTRY_IP }}:443": { "auth": "$AUTH_BASE64" },
+              "https://${{ secrets.REGISTRY_IP }}:443": { "auth": "$AUTH_BASE64" },
+              "http://${{ secrets.REGISTRY_IP }}:443": { "auth": "$AUTH_BASE64" },
+              "${{ secrets.REGISTRY_IP }}": { "auth": "$AUTH_BASE64" },
+              "https://${{ secrets.REGISTRY_IP }}": { "auth": "$AUTH_BASE64" }
             }
           }
           EOF
+          # Exporter la variable d'environnement pour tous les steps suivants
+          echo "DOCKER_CONFIG=/tmp/docker_auth" >> $GITHUB_ENV
 
       - name: Build and Push Backend Image
         run: |
