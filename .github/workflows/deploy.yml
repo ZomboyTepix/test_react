@@ -50,6 +50,10 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Ensure S3 Bucket Exists
+        run: |
+          aws s3api head-bucket --bucket test-react-tf-state-bucket-juliotepixtle 2>/dev/null || aws s3api create-bucket --bucket test-react-tf-state-bucket-juliotepixtle --region eu-west-3 --create-bucket-configuration LocationConstraint=eu-west-3
+
       - name: Terraform Init
         working-directory: ./app-infra
         run: terraform init

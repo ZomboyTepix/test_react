@@ -1,4 +1,9 @@
 terraform {
+    backend "s3" {
+        bucket = "test-react-tf-state-bucket-juliotepixtle"
+        key    = "app-infra/terraform.tfstate"
+        region = "eu-west-3"
+    }
     required_providers {
         aws = {
             source  = "hashicorp/aws"
