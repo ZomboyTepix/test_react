@@ -1,0 +1,113 @@
+name: CI/CD Déploiement
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure Docker Insecure Registry
+        run: |
+          sudo bash -c 'cat > /etc/docker/daemon.json <<EOF
+          {
+            "insecure-registries": ["${{ secrets.REGISTRY_IP }}:443"]
+          }
+          EOF'
+          sudo systemctl restart docker
+          sleep 5
+
+      - name: Login to Private Registry
+        run: docker login https://${{ secrets.REGISTRY_IP }}:443 -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and Push Backend Image
+        run: |
+          docker build -t ${{ secrets.REGISTRY_IP }}:443/backend:latest -f Dockerfile .
+          docker push ${{ secrets.REGISTRY_IP }}:443/backend:latest
+
+      - name: Build and Push Frontend Image
+        run: |
+          docker build -t ${{ secrets.REGISTRY_IP }}:443/frontend:latest -f React/Dockerfile React/
+          docker push ${{ secrets.REGISTRY_IP }}:443/frontend:latest
+
+  provision-and-deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: ./app-infra
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ./app-infra
+        run: terraform apply -auto-approve
+
+      - name: Extraire les outputs Terraform
+        id: tf-outputs
+        working-directory: ./app-infra
+        run: |
+          INSTANCE_IP=$(terraform output -raw instance_ip)
+          echo "APP_IP=$INSTANCE_IP" >> $GITHUB_ENV
+          
+          # La clé est enregistrée par Terraform dans un fichier local_file
+          # Mais pour être sûr, on lui donne les bons droits
+          chmod 400 app-key-terraform.pem
+
+      - name: Créer le fichier inventory.ini pour Ansible
+        working-directory: ./app-infra
+        run: |
+          cat <<EOF > inventory.ini
+          [app_hosts]
+          $APP_IP
+
+          [app_hosts:vars]
+          ansible_user=ubuntu
+          ansible_ssh_private_key_file=app-key-terraform.pem
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+          EOF
+
+      - name: Setup Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+
+      - name: Exécuter le Playbook Ansible Applicatif
+        working-directory: ./app-infra
+        env:
+          REGISTRY_IP: ${{ secrets.REGISTRY_IP }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          ansible-playbook -i inventory.ini playbook.yml
+
+      - name: Validation Post-Déploiement (Attente et curl)
+        run: |
+          echo "Attente de 30 secondes pour laisser les conteneurs démarrer..."
+          sleep 30
+          
+          echo "Vérification du Frontend (Port 3000)..."
+          curl -f http://$APP_IP:3000 || exit 1
+          
+          echo "Vérification du Backend (Port 8000)..."
+          curl -f http://$APP_IP:8000/docs || exit 1
+          
+          echo "✅ Déploiement validé avec succès !"

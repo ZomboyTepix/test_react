@@ -1,0 +1,106 @@
+---
+- name: Déploiement de l'application React/FastAPI
+  hosts: app_hosts
+  become: true
+  vars:
+    project_dir: "/home/ubuntu/app-stack"
+    # Ces variables seront passées dynamiquement par GitHub Actions
+    registry_ip: "{{ lookup('env', 'REGISTRY_IP') }}"
+    registry_user: "{{ lookup('env', 'REGISTRY_USER') }}"
+    registry_password: "{{ lookup('env', 'REGISTRY_PASSWORD') }}"
+
+  tasks:
+    # ----------------------------------------------------------
+    # 1. INSTALLATION DE DOCKER
+    # ----------------------------------------------------------
+    - name: Installation des paquets nécessaires
+      apt:
+        update_cache: yes
+        name:
+          - docker.io
+          - docker-compose-v2
+        state: present
+
+    - name: Ajout de l'utilisateur ubuntu au groupe docker
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    # ----------------------------------------------------------
+    # 2. CONFIGURATION DU REGISTRE PRIVÉ (Insecure)
+    # ----------------------------------------------------------
+    - name: Configuration de Docker pour autoriser le registre insecure
+      copy:
+        dest: /etc/docker/daemon.json
+        content: |
+          {
+            "insecure-registries": ["{{ registry_ip }}:443"]
+          }
+        mode: '0644'
+      notify: Restart Docker
+
+    - name: Appliquer la configuration Docker immédiatement
+      meta: flush_handlers
+
+    - name: Attendre que Docker soit prêt
+      service:
+        name: docker
+        state: started
+
+    - name: Connexion au registre privé
+      docker_login:
+        registry_url: "https://{{ registry_ip }}:443"
+        username: "{{ registry_user }}"
+        password: "{{ registry_password }}"
+
+    # ----------------------------------------------------------
+    # 3. DÉPLOIEMENT DE LA STACK APPLICATIVE
+    # ----------------------------------------------------------
+    - name: Création du dossier du projet
+      file:
+        path: "{{ project_dir }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copie du docker-compose.prod.yml
+      copy:
+        src: ../docker-compose.prod.yml
+        dest: "{{ project_dir }}/docker-compose.yml"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Création du fichier .env pour docker-compose
+      copy:
+        dest: "{{ project_dir }}/.env"
+        content: |
+          MYSQL_ROOT_PASSWORD={{ lookup('env', 'DB_PASSWORD') }}
+          MYSQL_USER={{ lookup('env', 'DB_USER') }}
+          MYSQL_DATABASE={{ lookup('env', 'DB_NAME') }}
+          ADMIN_EMAIL={{ lookup('env', 'ADMIN_EMAIL') }}
+          ADMIN_PASSWORD={{ lookup('env', 'ADMIN_PASSWORD') }}
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+
+    - name: Stop stack
+      command: docker compose stop
+      args:
+        chdir: "{{ project_dir }}"
+      ignore_errors: yes
+
+    - name: Démarrage de la stack (Pull et Up)
+      command: docker compose up --pull always --force-recreate -d
+      args:
+        chdir: "{{ project_dir }}"
+      environment:
+        REGISTRY_IP: "{{ registry_ip }}"
+
+  handlers:
+    - name: Restart Docker
+      service:
+        name: docker
+        state: restarted
